@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup}
+library(tidyverse)
+library(sf)
+library(usmap)
+```
+
+```{r read data}
+df_county <- read_rds("../data/fcc/data_export.rds")
+us_county <- usmap::us_map(region = "counties")
+```
+
+```{r clean fcc data}
+df_clean <- mutate(df_county, across(c(speed, starts_with("has")), as.numeric)) %>%
+    group_by(date, id, speed) %>%
+    summarise(across(where(is.numeric), sum)) %>%
+    rowwise() %>%
+    mutate(pop = sum(c_across(starts_with("has")))) %>%
+    mutate(has_2more = has_2 + has_3more,
+           pct_2more = has_2more / pop)
+```
+
