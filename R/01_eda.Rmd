@@ -24,3 +24,22 @@ df_clean <- mutate(df_county, across(c(speed, starts_with("has")), as.numeric)) 
            pct_2more = has_2more / pop)
 ```
 
+```{r individual maps min 25mb up}
+filter(df_clean, speed == 25) %>%
+    group_nest(date) %>%
+    mutate(date = lubridate::my(date)) %>%
+    arrange(date) %>%
+    pmap(~plot_usmap(data = dplyr::rename(..2, fips = id), values = "pct_2more") +
+             labs(title = ..1))
+
+```
+
+```{r individual maps min 100 mb up}
+filter(df_clean, speed == 100) %>%
+    group_nest(date) %>%
+    mutate(date = lubridate::my(date)) %>%
+    arrange(date) %>%
+    pmap(~plot_usmap(data = dplyr::rename(..2, fips = id), values = "pct_2more") +
+             labs(title = ..1))
+```
+
