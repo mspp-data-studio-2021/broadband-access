@@ -24,6 +24,10 @@
       "Hash": "030aaec5bc6553f35347cbb1e70b1a17"
     },
     "KernSmooth": {
+      "Package": "KernSmooth",
+      "Version": "2.23-20",
+      "Source": "Repository",
+      "Repository": "CRAN",
       "Hash": "8dcfa99b14c296bc9f1fd64d52fd3ce7"
     },
     "MASS": {
