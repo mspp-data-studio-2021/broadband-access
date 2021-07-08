@@ -1,0 +1,66 @@
+---
+title: "Microsoft and ACS"
+author: "Renata Gerecke"
+date: "7/8/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidycensus)
+library(usmap)
+library(janitor)
+```
+
+# Setup
+
+```{r}
+df_ms <- read_csv("../data/ms/broadband_data_2019November.csv",
+                  na = "-")
+
+df_acs <- read_rds("../data/acs/acs_5yr_ed.rds")
+```
+
+# Munge
+
+```{r}
+df_ms_mut <- df_ms %>%
+    clean_names() %>%
+    mutate(delta = broadband_availability_per_fcc - broadband_usage,
+           fips = county_id)
+```
+
+# Map
+
+```{r}
+plot_usmap(data = df_ms_mut, values = "delta") +
+    scale_fill_viridis_c(label = scales::percent) + 
+    labs(title = "Difference between MS and FCC",
+         subtitle = "November 2019",
+         fill = NULL,
+         caption = "Source: Microsoft Broadband Data") + 
+    theme(legend.position = "right")
+```
+
+# Match ACS data
+
+```{r}
+df_merge <- df_ms_mut %>% 
+    mutate(fips = as.character(county_id) %>%
+               str_pad(5, side = "left", pad = "0")) %>%
+    left_join(df_acs, by = "fips")
+
+    {lm(delta ~ male + age_18to64 + age_65up + inc_vlow + inc_low + comp_pc + comp_oth + int_sub + int_none, data = df_merge)} %>%
+    broom::tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001)))
+```
+
+```{r}
+ggplot(df_merge) + 
+    aes(x = inc_low, y = delta) + 
+    geom_point() + 
+    geom_smooth(method = "lm") + 
+    theme_bw()
+```

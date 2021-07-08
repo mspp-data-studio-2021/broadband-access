@@ -50,6 +50,8 @@ df_clean <- mutate(df_county, across(c(speed, starts_with("has")), as.numeric)) 
     mutate(has_2more = has_2 + has_3more,
            pct_2more = has_2more / pop) %>%
     rename(fips = id) 
+
+write_rds(df_clean, "../data/fcc/data_cleaned.rds")
 ```
 
 # Plotting
