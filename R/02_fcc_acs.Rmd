@@ -1,0 +1,71 @@
+---
+title: "Merge Census Data"
+author: "Renata Gerecke"
+date: "7/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidycensus)
+library(lubridate)
+```
+
+# Setup
+
+```{r}
+df_fcc <- read_rds("../data/fcc/data_cleaned.rds")
+df_acs1 <- read_rds("../data/acs/acs_1yr_ed.rds")
+df_acs5 <- read_rds("../data/acs/acs_5yr_ed.rds")
+```
+
+# merge data - 5 year
+
+```{r}
+df_merge5 <- left_join(
+    df_fcc,
+    df_acs5,
+    by = "fips"
+)
+```
+
+```{r}
+df_merge5 %>% 
+    filter(speed == 25) %>%
+    mutate(date = fct_inorder(date)) %>%
+    {lm(pct_2more ~ date + male + age_18to64 + age_65up + inc_vlow + inc_low + comp_pc + comp_oth + int_sub + int_none, data = .)} %>%
+    broom::tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001)))
+```
+
+```{r}
+ggplot(filter(df_merge5, speed == 25)) +
+    aes(x = male, y = pct_2more) + 
+    geom_point() + 
+    geom_smooth(method = "lm") + 
+    theme_bw()
+```
+
+# merge data - 1 year
+
+```{r}
+df_merge1 <- df_fcc %>%
+    mutate(year = parse_number(date) + 2000) %>%
+    right_join(df_acs1, by = c("year", "fips"))
+
+df_merge1 %>%
+    filter(speed == 25) %>%
+    {lm(pct_2more ~ date + male + age_18to64 + age_65up + comp_pc + comp_oth + int_sub + int_none, data = .)} %>%
+    broom::tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001)))
+```
+
+```{r}
+ggplot(filter(df_merge1, speed == 100)) + 
+    aes(x = age_18to64, y = pct_2more) + 
+    geom_point() + 
+    geom_smooth(method = "lm") +
+    theme_bw()
+```
+
