@@ -42,6 +42,8 @@ plot_usmap(data = df_ms_mut, values = "delta") +
          fill = NULL,
          caption = "Source: Microsoft Broadband Data") + 
     theme(legend.position = "right")
+
+ggsave("../output/ms_fcc_delta.png")
 ```
 
 # Match ACS data
