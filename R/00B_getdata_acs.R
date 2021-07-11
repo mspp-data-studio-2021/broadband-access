@@ -20,7 +20,7 @@ acs_vars_5 <- load_variables(2019, "acs5", cache = TRUE)
 
 acs_keep <- filter(acs_vars, year == 1) %>%
     filter(
-        str_detect(name, "^B02001_") | # race
+        str_detect(name, "B03002") | # race
             str_detect(name, "B01001_") | # sex & age
             str_detect(name, "B28001_") | # type of computer
             str_detect(name, "B28003_") | # type of computer x internet
