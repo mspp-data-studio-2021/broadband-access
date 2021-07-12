@@ -12,41 +12,77 @@ library(tidyverse)
 library(tidycensus)
 library(usmap)
 library(janitor)
+library(broom)
 ```
+
+Microsoft collects its own data on broadband internet access, reporting the percent of people in a county who are actually accessing "high-speed" internet (25 mbps upload/3 mbps download). These numbers could vary from the FCC estimates for several reasons, including: 
+
+1. The ISPs are reporting that they serve areas that they do not actually support;
+2. The ISPs are reporting that they provide speeds that they do not actually achieve;
+3. The ISPs serve the area at high speeds but at a price point that is too high for the residents to afford; or
+4. The residents aren't interested in high speed internet access.
+
+For this analysis I will be using open-source data from Microsoft that both reports the FCC estimate of availability and Microsoft's observed measure of accessibility. Then, I will use the 5-year ACS population estimates to assess the degree to which demographic characteristics are associated with high-speed internet access.
 
 # Setup
 
+First, I read in two data files: Microsoft's data from November 2019 and the ACS 5-year estimate from 2015-2019.
+
 ```{r}
-df_ms <- read_csv("../data/ms/broadband_data_2019November.csv",
+df_ms_19 <- read_csv("../data/ms/broadband_data_2019November.csv",
                   na = "-")
+
+df_ms_20 <- read_csv("../data/ms/broadband_data_2020October.csv",
+                     na = "-", skip = 18)
 
 df_acs <- read_rds("../data/acs/acs_5yr_ed.rds")
 ```
 
 # Munge
 
+The main adjustment that needs to be made to the Micorosft data is the calculation of the difference between FCC's reported broadband availability and Microsoft's observed broadband usage. A difference of .2 would indicate that the FCC has overestimated availability by 20 percentage points; a difference of -.2 would indicate an underestimate of the same magnitude. 
+
 ```{r}
-df_ms_mut <- df_ms %>%
+df_ms_mut <- bind_rows(df_ms_19, df_ms_20, .id = "year") %>%
     clean_names() %>%
     mutate(delta = broadband_availability_per_fcc - broadband_usage,
-           fips = county_id)
+           fips = county_id,
+           year = ifelse(year == 1, 2019, 2020)) %>%
+    pivot_wider(
+        names_from = year,
+        values_from = c(starts_with("broadband"), delta),
+        names_sep = "_"
+    )
 ```
 
 # Map
 
 ```{r}
-plot_usmap(data = df_ms_mut, values = "delta") +
-    scale_fill_viridis_c(label = scales::percent) + 
+plot_usmap(data = df_ms_mut, values = "delta_2019") +
+    scale_fill_gradient2(label = scales::percent) + 
     labs(title = "Difference between MS and FCC",
          subtitle = "November 2019",
          fill = NULL,
          caption = "Source: Microsoft Broadband Data") + 
     theme(legend.position = "right")
 
-ggsave("../output/ms_fcc_delta.png")
+# ggsave("../output/ms_fcc_delta.png")
 ```
 
+```{r}
+plot_usmap(data = df_ms_mut, values = "delta_2020") +
+    scale_fill_gradient2(label = scales::percent) + 
+    labs(title = "Difference between MS and FCC",
+         subtitle = "October 2020",
+         fill = NULL,
+         caption = "Source: Microsoft Broadband Data") + 
+    theme(legend.position = "right")
+```
+
+
 # Match ACS data
+
+**TODO**: Running all these models separately is interesting and says a lot but we can probably estimate the impact of being self-reported vs observed and year-on-year by combining all the data & running a single regression? To try later today.
 
 ```{r}
 df_merge <- df_ms_mut %>% 
@@ -54,15 +90,91 @@ df_merge <- df_ms_mut %>%
                str_pad(5, side = "left", pad = "0")) %>%
     left_join(df_acs, by = "fips")
 
-    {lm(delta ~ male + age_18to64 + age_65up + inc_vlow + inc_low + comp_pc + comp_oth + int_sub + int_none, data = df_merge)} %>%
-    broom::tidy() %>%
+all_unadjusted <- list(
+  obs_19 = {
+    lm(broadband_usage_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
+  } %>%
+    tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  obs_20 = {
+    lm(broadband_usage_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
+  } %>%
+    tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  est_19 = {
+    lm(broadband_availability_per_fcc_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
+  } %>%
+    tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  est_20 = {
+    lm(broadband_availability_per_fcc_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
+  } %>%
+    tidy() %>%
     mutate(across(where(is.numeric), scales::comma_format(accuracy = .001)))
+) %>%
+    bind_rows(.id = "version") %>%
+    pivot_wider(
+        id_cols = term,
+        names_from = version,
+        values_from = c(estimate, p.value)
+    )
+
+all_unadjusted
 ```
+
+
+```{r}
+all_adjusted <- list(
+  obs_19 = {
+    lm(broadband_usage_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
+  } %>%
+    tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  obs_20 = {
+    lm(broadband_usage_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
+  } %>%
+    tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  est_19 = {
+    lm(broadband_availability_per_fcc_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
+  } %>%
+    tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  est_20 = {
+    lm(broadband_availability_per_fcc_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
+  } %>%
+    tidy() %>%
+    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001)))
+) %>%
+    bind_rows(.id = "version") %>%
+    pivot_wider(
+        id_cols = term,
+        names_from = version,
+        values_from = c(estimate, p.value)
+    )
+
+all_adjusted
+```
+
+
+
+
+# Plot
 
 ```{r}
 ggplot(df_merge) + 
-    aes(x = inc_low, y = delta) + 
+    aes(x = broadband_availability_per_fcc_2019, y = broadband_usage_2019) + 
     geom_point() + 
-    geom_smooth(method = "lm") + 
+    geom_smooth() + 
     theme_bw()
 ```
+
+
+```{r}
+ggplot(df_merge) + 
+    aes(x = broadband_availability_per_fcc_2020, y = broadband_usage_2020) + 
+    geom_point() + 
+    geom_smooth() + 
+    theme_bw()
+```
+
