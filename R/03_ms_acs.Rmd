@@ -13,6 +13,7 @@ library(tidycensus)
 library(usmap)
 library(janitor)
 library(broom)
+library(stargazer)
 ```
 
 Microsoft collects its own data on broadband internet access, reporting the percent of people in a county who are actually accessing "high-speed" internet (25 mbps upload/3 mbps download). These numbers could vary from the FCC estimates for several reasons, including: 
@@ -58,9 +59,9 @@ df_ms_mut <- bind_rows(df_ms_19, df_ms_20, .id = "year") %>%
 # Map
 
 ```{r}
-plot_usmap(data = df_ms_mut, values = "delta_2019") +
-    scale_fill_gradient2(label = scales::percent) + 
-    labs(title = "Difference between MS and FCC",
+plot_usmap(data = df_ms_mut, values = "delta_2019", color = "transparent") +
+    scale_fill_gradient2(label = scales::percent, limits = c(-1,1)) + 
+    labs(title = "Percentage Point Overestimation of Broadband Internet Access",
          subtitle = "November 2019",
          fill = NULL,
          caption = "Source: Microsoft Broadband Data") + 
@@ -70,9 +71,9 @@ plot_usmap(data = df_ms_mut, values = "delta_2019") +
 ```
 
 ```{r}
-plot_usmap(data = df_ms_mut, values = "delta_2020") +
-    scale_fill_gradient2(label = scales::percent) + 
-    labs(title = "Difference between MS and FCC",
+plot_usmap(data = df_ms_mut, values = "delta_2020", color = "transparent") +
+    scale_fill_gradient2(label = scales::percent, limits = c(-1,1)) + 
+    labs(title = "Percentage Point Overestimation of Broadband Internet Access",
          subtitle = "October 2020",
          fill = NULL,
          caption = "Source: Microsoft Broadband Data") + 
@@ -84,7 +85,7 @@ plot_usmap(data = df_ms_mut, values = "delta_2020") +
 
 **TODO**: Running all these models separately is interesting and says a lot but we can probably estimate the impact of being self-reported vs observed and year-on-year by combining all the data & running a single regression? To try later today.
 
-```{r}
+```{r, results='asis'}
 df_merge <- df_ms_mut %>% 
     mutate(fips = as.character(county_id) %>%
                str_pad(5, side = "left", pad = "0")) %>%
@@ -93,67 +94,50 @@ df_merge <- df_ms_mut %>%
 all_unadjusted <- list(
   obs_19 = {
     lm(broadband_usage_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  },
+    est_19 = {
+    lm(broadband_availability_per_fcc_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
+  } , 
   obs_20 = {
     lm(broadband_usage_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
-  est_19 = {
-    lm(broadband_availability_per_fcc_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  },
   est_20 = {
     lm(broadband_availability_per_fcc_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001)))
-) %>%
-    bind_rows(.id = "version") %>%
-    pivot_wider(
-        id_cols = term,
-        names_from = version,
-        values_from = c(estimate, p.value)
-    )
+  } 
+) 
 
-all_unadjusted
+stargazer(
+  all_unadjusted,
+  type = "html",
+  covariate.labels = c("% Black Non-Hispanic", "% Asian Non-Hispanic", "% Other Non-Hispanic", "% Hispanic"),
+  dep.var.labels = c("Observed by MS, 2019", "Estimated by FCC, 2019", "Observed by MS, 2020", "Estimated by FCC, 2020"),
+  out = "../output/unadjusted.htm"
+)
 ```
 
 
-```{r}
+```{r, results = "asis"}
 all_adjusted <- list(
   obs_19 = {
     lm(broadband_usage_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
-  obs_20 = {
-    lm(broadband_usage_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  },
   est_19 = {
     lm(broadband_availability_per_fcc_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001))),
+  },
+  obs_20 = {
+    lm(broadband_usage_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
+  },
   est_20 = {
     lm(broadband_availability_per_fcc_2020 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
-  } %>%
-    tidy() %>%
-    mutate(across(where(is.numeric), scales::comma_format(accuracy = .001)))
-) %>%
-    bind_rows(.id = "version") %>%
-    pivot_wider(
-        id_cols = term,
-        names_from = version,
-        values_from = c(estimate, p.value)
-    )
-
-all_adjusted
+  }
+) 
+stargazer(
+  all_adjusted,
+  type = "html",
+  covariate.labels = c("% Black Non-Hispanic", "% Asian Non-Hispanic", "% Other Non-Hispanic", "% Hispanic", "% Male", "% Age 18-64", "% Age 65+", "% Below Poverty Line"),
+  dep.var.labels = c("Observed by MS, 2019", "Estimated by FCC, 2019", "Observed by MS, 2020", "Estimated by FCC, 2020"),
+  out = "../output/adjusted.htm"
+)
 ```
 
 
@@ -165,7 +149,16 @@ all_adjusted
 ggplot(df_merge) + 
     aes(x = broadband_availability_per_fcc_2019, y = broadband_usage_2019) + 
     geom_point() + 
-    geom_smooth() + 
+    geom_abline(slope = 1, intercept = 0, color = "red") + 
+    scale_x_continuous(label = scales::percent) + 
+    scale_y_continuous(label = scales::percent) + 
+  labs(
+    title = "Self-Reported Availability vs. Estimated Usage of Broadband Internet",
+    subtitle = "By U.S. County, November 2019",
+    caption = "Source: Microsoft Broadband Data",
+    x = "Broadband Availability Reported to FCC",
+    y = "Broadband Usage Observed by Microsoft"
+  ) + 
     theme_bw()
 ```
 
@@ -173,8 +166,17 @@ ggplot(df_merge) +
 ```{r}
 ggplot(df_merge) + 
     aes(x = broadband_availability_per_fcc_2020, y = broadband_usage_2020) + 
-    geom_point() + 
-    geom_smooth() + 
+  geom_point() +
+    geom_abline(slope = 1, intercept = 0, color = "red") + 
+    scale_x_continuous(label = scales::percent) + 
+    scale_y_continuous(label = scales::percent) + 
+  labs(
+    title = "Self-Reported Availability vs. Estimated Usage of Broadband Internet",
+    subtitle = "By U.S. County, October 2020",
+    caption = "Source: Microsoft Broadband Data",
+    x = "Broadband Availability Reported to FCC",
+    y = "Broadband Usage Observed by Microsoft"
+  ) + 
     theme_bw()
 ```
 
