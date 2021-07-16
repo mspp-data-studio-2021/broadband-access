@@ -18,7 +18,6 @@ In order to perform our exploratory analysis, we will use four packages:
 
 ```{r setup}
 library(tidyverse)
-# library(sf)
 library(usmap)
 library(gganimate)
 library(scales)
@@ -33,7 +32,6 @@ The data for this analysis is published by the Federal Communications Commission
 
 ```{r read data}
 df_county <- read_rds("../data/fcc/data_export.rds")
-# us_county <- usmap::us_map(region = "counties")
 ```
 
 # Cleaning
@@ -48,6 +46,7 @@ df_clean <- mutate(df_county, across(c(speed, starts_with("has")), as.numeric)) 
     mutate(pop = sum(c_across(starts_with("has")))) %>%
     ungroup() %>%
     mutate(has_2more = has_2 + has_3more,
+           pct_1more = (pop - has_0) / pop,
            pct_2more = has_2more / pop) %>%
     rename(fips = id) 
 
@@ -59,17 +58,16 @@ write_rds(df_clean, "../data/fcc/data_cleaned.rds")
 The first set of charts looks at the percent of residents in each county who can purchase internet at 25 mbps download (the FCC definition of "high speed internet") from 2+ ISPs from 2016-2020. While coverage was sparse in 2016, by 2020 it is nearly universally available.
 
 ```{r individual maps min 25mb up}
-fmt_title <- function(title, speed) {
-    str_c("Percent of Residents Eligible for 2+ ISPs at ",
-          speed,
-          ", ",
+fmt_title <- function(title) {
+    str_c("Percent of Residents with Access to Broadband Internet, ",
           date_format("%B %Y")(title))
 }
 
 plot_fcc <- function(data, title, speed) {
-    plot_usmap(data = data, values = "pct_2more") +
-        scale_fill_viridis_c(label = scales::percent) + 
-        labs(title = fmt_title(title, speed),
+    plot_usmap(data = data, values = "pct_1more", color = "transparent") +
+        scale_fill_gradient(label = scales::percent, limits = c(0,1)) + 
+        labs(title = fmt_title(title),
+             subtitle = speed,
              fill = NULL,
              caption = "Source: FCC Form 477 Aggregate Area Tables") + 
         theme(legend.position = "right")
@@ -79,9 +77,7 @@ filter(df_clean, speed == 25) %>%
     group_nest(date) %>%
     mutate(date = lubridate::my(date)) %>%
     arrange(date) %>%
-    pwalk(~plot_fcc(..2, ..1, "25 mbps"))
-
-
+    pwalk(~print(plot_fcc(..2, ..1, "25 mbps download")))
 
 ```
 
@@ -89,10 +85,15 @@ filter(df_clean, speed == 25) %>%
 However, many sites on the internet agree that 25mbps is not sufficient for working or learning from home. They recommend purchasing internet that is 50-100 mbps. These charts show that while there has been an increase in availability of 100mbps internet, it is far from universally available, especially in more rural parts of the country.
 
 ```{r individual maps min 100 mb up}
+fmt_title <- function(title) {
+    str_c("Percent of Residents with Access to WFH-Capable Internet, ",
+          date_format("%B %Y")(title))
+}
+
 filter(df_clean, speed == 100) %>%
     group_nest(date) %>%
     mutate(date = lubridate::my(date)) %>%
     arrange(date) %>%
-    pwalk(~plot_fcc(..2, ..1, "100 mbps"))
+    pwalk(~print(plot_fcc(..2, ..1, "100 mbps download")))
 ```
 

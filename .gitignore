@@ -37,3 +37,10 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+data/tl_2019_us_county/tl_2019_us_county.cpg
+data/tl_2019_us_county/tl_2019_us_county.dbf
+data/tl_2019_us_county/tl_2019_us_county.prj
+data/tl_2019_us_county/tl_2019_us_county.shp
+data/tl_2019_us_county/tl_2019_us_county.shp.ea.iso.xml
+data/tl_2019_us_county/tl_2019_us_county.shp.iso.xml
+data/tl_2019_us_county/tl_2019_us_county.shx

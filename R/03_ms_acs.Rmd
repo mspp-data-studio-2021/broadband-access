@@ -2,7 +2,9 @@
 title: "Microsoft and ACS"
 author: "Renata Gerecke"
 date: "7/8/2021"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -13,6 +15,7 @@ library(tidycensus)
 library(usmap)
 library(janitor)
 library(broom)
+library(sf)
 library(stargazer)
 ```
 
@@ -37,6 +40,8 @@ df_ms_20 <- read_csv("../data/ms/broadband_data_2020October.csv",
                      na = "-", skip = 18)
 
 df_acs <- read_rds("../data/acs/acs_5yr_ed.rds")
+
+df_county <- st_read("../data/tl_2019_us_county/tl_2019_us_county.shp")
 ```
 
 # Munge
@@ -57,6 +62,17 @@ df_ms_mut <- bind_rows(df_ms_19, df_ms_20, .id = "year") %>%
 ```
 
 # Map
+
+```{r}
+plot_usmap(data = df_ms_mut, values = "broadband_usage_2020", color = "transparent") +
+    scale_fill_gradient(label = scales::percent, limits = c(0,1)) + 
+    labs(title = "Percent of Residents Using Broadband Internet, October 2020",
+         subtitle = "25 mbps download",
+         fill = NULL,
+         caption = "Source: Microsoft Broadband Data") +
+    theme(legend.position = "right")
+```
+
 
 ```{r}
 plot_usmap(data = df_ms_mut, values = "delta_2019", color = "transparent") +
@@ -81,15 +97,132 @@ plot_usmap(data = df_ms_mut, values = "delta_2020", color = "transparent") +
 ```
 
 
-# Match ACS data
 
-**TODO**: Running all these models separately is interesting and says a lot but we can probably estimate the impact of being self-reported vs observed and year-on-year by combining all the data & running a single regression? To try later today.
+# Plot
 
-```{r, results='asis'}
+```{r}
+
 df_merge <- df_ms_mut %>% 
     mutate(fips = as.character(county_id) %>%
                str_pad(5, side = "left", pad = "0")) %>%
-    left_join(df_acs, by = "fips")
+    left_join(df_acs, by = "fips") %>%
+    left_join(select(st_drop_geometry(df_county), fips = GEOID, area = ALAND), by = "fips") %>%
+  mutate(pop_dense = tot_pop / (area / 2589988))
+
+ggplot(df_merge) + 
+    aes(x = broadband_availability_per_fcc_2019, y = broadband_usage_2019) + 
+    geom_point(alpha = .3) + 
+    geom_abline(slope = 1, intercept = 0, color = "red") + 
+    scale_x_continuous(label = scales::percent) + 
+    scale_y_continuous(label = scales::percent) + 
+  labs(
+    title = "Availability vs. Usage of Broadband Internet",
+    subtitle = "By U.S. County, November 2019",
+    caption = "Source: Microsoft Broadband Data",
+    x = "Broadband Availability Reported to FCC",
+    y = "Broadband Usage Observed by Microsoft"
+  ) + 
+    theme_classic()
+```
+
+
+```{r}
+ggplot(df_merge) + 
+    aes(x = broadband_availability_per_fcc_2020, y = broadband_usage_2020) + 
+  geom_point(alpha = .3) +
+    geom_abline(slope = 1, intercept = 0, color = "red") + 
+    scale_x_continuous(label = scales::percent) + 
+    scale_y_continuous(label = scales::percent) + 
+  labs(
+    title = "Availability vs. Usage of Broadband Internet",
+    subtitle = "By U.S. County, October 2020",
+    caption = "Source: Microsoft Broadband Data",
+    x = "Broadband Availability Reported to FCC",
+    y = "Broadband Usage Observed by Microsoft"
+  ) + 
+    theme_classic()
+```
+
+```{r}
+ggplot(df_merge) + 
+    aes(x = log(pop_dense), y = broadband_usage_2020) + 
+  geom_point(alpha = .3) +
+    # geom_abline(slope = 1, intercept = 0, color = "red") + 
+    scale_x_continuous(label = scales::comma) + 
+    scale_y_continuous(label = scales::percent) + 
+  labs(
+    title = "Availability vs. Usage of Broadband Internet",
+    subtitle = "By U.S. County, October 2020",
+    caption = "Source: Microsoft Broadband Data",
+    x = "Population Density (persons per sq.mi.)",
+    y = "Broadband Usage Observed by Microsoft"
+  ) + 
+    theme_classic()
+```
+
+
+# Single Regression
+
+```{r}
+df_ms_long <- df_ms_mut %>%
+  pivot_longer(
+    starts_with("broadband")
+  ) %>%
+  mutate(year = as.character(parse_number(name)),
+         source = case_when(
+           str_detect(name, "fcc") ~ "fcc",
+           TRUE ~ "ms"
+         ),
+         delta_2019 = NULL,
+         delta_2020 = NULL,
+         name = NULL,
+         fips = as.character(county_id) %>%
+               str_pad(5, side = "left", pad = "0")) %>%
+    left_join(df_acs, by = "fips") %>%
+  left_join(select(st_drop_geometry(df_county), fips = GEOID, area = ALAND), by = "fips") %>%
+  mutate(pop_dense = tot_pop / (area / 2589988))
+```
+
+```{r, results = "asis"}
+long_lm <- list(
+  long_unadj = lm(
+    value ~ source * year,
+    data = df_ms_long
+  ),
+  long_adj1 = lm(
+    value ~ source * year + race_blacknh + race_asiannh + race_othernh + race_hispanic,
+    data = df_ms_long
+  ),
+  long_adj2 = lm(
+    value ~ source * year + race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low + log(pop_dense),
+    data = df_ms_long
+  )
+) 
+
+stargazer(
+  long_lm,
+  type = "html",
+  covariate.labels = c("Source: Microsoft", "Year: 2020", "% Black Non-Hispanic", "% Asian Non-Hispanic", "% Other Non-Hispanic", "% Hispanic", "% Male", "% Age 18-64", "% Age 65+", "% Below Poverty Line", "Log Population Density<br>(persons per sq. mi.)", "Source: Microsoft * Year: 2020"),
+  column.labels = c("Unadjusted", "Adjusted by Race", "Adjusted by Demos"), 
+  dep.var.labels = "% Residents in County with Broadband Access",
+  out = "../output/long_lm.htm"
+)
+
+
+```
+
+
+
+# Original Regressions (Unused)
+
+## Match ACS data
+
+
+
+**TODO**: Running all these models separately is interesting and says a lot but we can probably estimate the impact of being self-reported vs observed and year-on-year by combining all the data & running a single regression? To try later today.
+
+```{r, eval = FALSE}
+
 
 all_unadjusted <- list(
   obs_19 = {
@@ -116,7 +249,7 @@ stargazer(
 ```
 
 
-```{r, results = "asis"}
+```{r, eval = FALSE}
 all_adjusted <- list(
   obs_19 = {
     lm(broadband_usage_2019 ~ race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low, data = df_merge)
@@ -139,44 +272,3 @@ stargazer(
   out = "../output/adjusted.htm"
 )
 ```
-
-
-
-
-# Plot
-
-```{r}
-ggplot(df_merge) + 
-    aes(x = broadband_availability_per_fcc_2019, y = broadband_usage_2019) + 
-    geom_point() + 
-    geom_abline(slope = 1, intercept = 0, color = "red") + 
-    scale_x_continuous(label = scales::percent) + 
-    scale_y_continuous(label = scales::percent) + 
-  labs(
-    title = "Self-Reported Availability vs. Estimated Usage of Broadband Internet",
-    subtitle = "By U.S. County, November 2019",
-    caption = "Source: Microsoft Broadband Data",
-    x = "Broadband Availability Reported to FCC",
-    y = "Broadband Usage Observed by Microsoft"
-  ) + 
-    theme_bw()
-```
-
-
-```{r}
-ggplot(df_merge) + 
-    aes(x = broadband_availability_per_fcc_2020, y = broadband_usage_2020) + 
-  geom_point() +
-    geom_abline(slope = 1, intercept = 0, color = "red") + 
-    scale_x_continuous(label = scales::percent) + 
-    scale_y_continuous(label = scales::percent) + 
-  labs(
-    title = "Self-Reported Availability vs. Estimated Usage of Broadband Internet",
-    subtitle = "By U.S. County, October 2020",
-    caption = "Source: Microsoft Broadband Data",
-    x = "Broadband Availability Reported to FCC",
-    y = "Broadband Usage Observed by Microsoft"
-  ) + 
-    theme_bw()
-```
-
