@@ -186,11 +186,11 @@ pre code {
 
 <div id="introduction" class="section level1">
 <h1>Introduction</h1>
-<p>Home internet access is vital for work, education, and community. Never has this been more apparent than in a global pandemic, where overnight millions of Americans were suddenly forced to work, learn, and socialize remotely. In March 2020, it became immediately apparent that too many Americans do not have sufficient access to the internet in their homes. Local and federal governments worked to fill the gap by drafting infrastructure bills to expand access in rural communities or supply vouchers to families who could not afford existing options.</p>
-<p>The flexibility and independence afforded by widespread home internet access is essential to participating in American life. This reeport seeks to do some things about that!</p>
+<p>Home internet access is vital for work, education, and community. In March 2020, millions of Americans were suddenly forced to work, learn, and socialize remotely due to a global pandemic. They found that the internet they had at home (if they had any) was not enough to stay engaged with their friends, family, co-workers, and classmates. Local and federal governments worked to fill the gap by drafting infrastructure bills to expand access in rural communities or supply vouchers to families who could not afford existing options.</p>
+<p>The flexibility and independence afforded by widespread home internet access is essential to participating in American life. This report highlights how the government has failed to properly assess broadband internet coverage in the United States to the disadvantage of all Americans.</p>
 <div id="background-and-data-sources" class="section level2">
 <h2>Background and Data Sources</h2>
-<p>Internet access is ostensibly monitored and regulated by the Federal Communications Commission (FCC). Internet Service Providers (ISPs) report, block by block, what speeds of internet they have available to the FCC. The FCC then aggregates and <a href="https://broadbandmap.fcc.gov/#/data-download">makes that data publicly available</a>. However, this data is <strong>not audited by the FCC</strong>. To estimate the gap between what the ISPs report to the FCC and the Internet access actually experienced by American residents, Microsoft has collected and made available <a href="https://github.com/microsoft/USBroadbandUsagePercentages">aggregated data on obvserved internet speeds</a> at the county level from November 2019 and October 2020.</p>
+<p>Internet access is ostensibly monitored and regulated by the Federal Communications Commission (FCC). Internet Service Providers (ISPs) report, block by block, what speeds of internet they have available to the FCC. The FCC then aggregates and <a href="https://broadbandmap.fcc.gov/#/data-download">makes that data publicly available</a>. However, this data is <strong>not audited by the FCC</strong>. To estimate the gap between what the ISPs report to the FCC and the Internet access actually experienced by American residents, Microsoft has collected and made available <a href="https://github.com/microsoft/USBroadbandUsagePercentages">aggregated data on obvserved internet speeds</a> at the county level from October 2020.</p>
 <pre class="r"><code>knitr::opts_chunk$set(echo = TRUE, fig.align = &quot;center&quot;)
 
 # load libraries
@@ -254,7 +254,7 @@ long_lm &lt;- list(
 </div>
 <div id="a-note-on-speeds" class="section level2">
 <h2>A note on speeds</h2>
-<p>“High speed” or “broadband” internet access is defined as having speeds up to 25mbps for downloading data and up to 3mbps downloading data. As broadband access has been the focal point of the national conversation, all charts and analyses focus on internet available at that speed threshold. However, experts agree that broadband internet is not actually sufficient for working or learning remotely. Instead they recommend speeds of 50-100mbps. As people continue to fill their homes with smart TVs, laptops, smartphones, and other internet-connected devices, their internet needs increase. Only advocating for broadband speeds will put us behind the curve when we should be aiming ahead of it.</p>
+<p>“High speed” or “broadband” internet access is defined as having speeds up to 25 mbps for downloading data and up to 3 mbps downloading data. As broadband access has been the focal point of the national conversation, all charts and analyses focus on internet available at that speed threshold. However, experts agree that broadband internet is not actually sufficient for working or learning remotely. Instead they recommend speeds of 50-100 mbps. As people continue to fill their homes with smart TVs, laptops, smartphones, and other internet-connected devices, their internet needs increase. Only advocating for broadband speeds will put us behind the curve when we should be aiming ahead of it.</p>
 </div>
 </div>
 <div id="the-state-of-broadband-internet" class="section level1">
@@ -302,7 +302,7 @@ long_lm &lt;- list(
 </div>
 <div id="regional-variations-in-access" class="section level2">
 <h2>Regional Variations in Access</h2>
-<p>For the most part, access to broadband is seen as a problem for rural America, where it is expensive to build out the infrastructure needed for high-speed wireless internet. Microsoft’s data does suggest that more people are accessing broadband in high-density, coastal counties. But, I wondered if geographic region played a role in which counties had high levels of access reported by the ISPs but low levels of access estimated by Microsof. The map below shows the percentage point difference between the FCC and Microsoft’s data–and there is no visible geographic pattern.</p>
+<p>For the most part, access to broadband is seen as a problem for rural America, where it is expensive to build out the infrastructure needed for high-speed wireless internet. Microsoft’s data does suggest that more people are accessing broadband in high-density, coastal counties. But, I wondered if geographic region played a role in which counties had high levels of access reported by the ISPs but low levels of access estimated by Microsoft. The map below shows the percentage point difference between the FCC and Microsoft’s data–and there is no visible geographic pattern.</p>
 <pre class="r"><code>plot_usmap(data = df_ms_mut, values = &quot;delta&quot;, color = &quot;transparent&quot;) +
     scale_fill_gradient2(label = percent, limits = c(-1,1)) + 
     labs(title = &quot;Percentage Point Overestimation of Broadband Internet Access&quot;,
@@ -315,7 +315,7 @@ long_lm &lt;- list(
 </div>
 <div id="who-has-access" class="section level1">
 <h1>Who Has Access</h1>
-<p>This brought me to the central question of my analysis: are there demographic patterns that would explain why certain counties see higher levels of internet access? Initially, I was most interested in looking at race and ethnicity, imagining that even in high-density cities, counties with high proportions of Black and Hispanic residents would have less access to high-speed internet. Ultimately, my analysis included race/ethnicity, gender, age, and poverty estimates from the 2019 5-year American Community Survey population estimates and population density as calculated using the U.S. Census 2019 land areas joined with Microsoft’s October 2020 dataset.</p>
+<p>This brought me to the central question of my analysis: are there demographic patterns that would explain why certain counties see higher levels of internet access? Initially, I was most interested in looking at race and ethnicity, imagining that even in high-density cities, counties with high proportions of Black and Hispanic residents would have less access to high-speed internet. Ultimately, my analysis included race/ethnicity, gender, age, and poverty estimates from the 2019 5-year American Community Survey population estimates and population density as calculated using the U.S. Census 2019 land areas joined with Microsoft’s October 2020 data set.</p>
 <div align="center">
 <pre class="r"><code>stargazer(
   long_lm,
