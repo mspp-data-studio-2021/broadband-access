@@ -1,5 +1,10 @@
 ---
 title: "Broadband Access in the United States"
+knit: (function(input_file, encoding) {
+  out_dir <- '../docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 author: "renata gerecke"
 date: "July 22, 2021"
 output:
@@ -143,7 +148,7 @@ Unfortunately, we do not have sufficient data to tease out which reason is the d
 
 ## Regional Variations in Access
 
-For the most part, access to broadband is seen as a problem for rural America, where it is expensive to build out the infrastructure needed for high-speed wireless internet. Microsoft's data does suggest that more people are accessing broadband in high-density, coastal counties. But, I wondered if geographic region played a role in which counties had high levels of access reported by the ISPs but low levels of access estimated by Microsoft. The map below shows the percentage point difference between the FCC and Microsoft's data--and there is no visible geographic pattern. 
+For the most part, access to broadband is seen as a problem for rural America, where it is expensive to build out the infrastructure needed for high-speed wireless internet. Microsoft's data does suggest that more people are accessing broadband in high-density, coastal counties. But, I wondered if geographic region played a role in which counties had high levels of access reported by the ISPs but low levels of access estimated by Microsof. The map below shows the percentage point difference between the FCC and Microsoft's data--and there is no visible geographic pattern. 
 
 ```{r}
 plot_usmap(data = df_ms_mut, values = "delta", color = "transparent") +
