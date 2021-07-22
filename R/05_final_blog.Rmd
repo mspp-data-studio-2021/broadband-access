@@ -1,0 +1,190 @@
+---
+title: "Broadband Access in the United States"
+author: "renata gerecke"
+date: "July 22, 2021"
+output:
+  html_document: 
+    code_folding: hide
+    theme: sandstone
+  pdf_document: default
+---
+
+
+# Introduction
+
+Home internet access is vital for work, education, and community. Never has this been more apparent than in a global pandemic, where overnight millions of Americans were suddenly forced to work, learn, and socialize remotely. In March 2020, it became immediately apparent that too many Americans do not have sufficient access to the internet in their homes. Local and federal governments worked to fill the gap by drafting infrastructure bills to expand access in rural communities or supply vouchers to families who could not afford existing options. 
+
+The flexibility and independence afforded by widespread home internet access is essential to participating in American life. This reeport seeks to do some things about that!
+
+## Background and Data Sources
+
+Internet access is ostensibly monitored and regulated by the Federal Communications Commission (FCC). Internet Service Providers (ISPs) report, block by block, what speeds of internet they have available to the FCC. The FCC then aggregates and [makes that data publicly available](https://broadbandmap.fcc.gov/#/data-download). However, this data is **not audited by the FCC**. To estimate the gap between what the ISPs report to the FCC and the Internet access actually experienced by American residents, Microsoft has collected and made available [aggregated data on obvserved internet speeds](https://github.com/microsoft/USBroadbandUsagePercentages) at the county level from November 2019 and October 2020. 
+
+```{r setup, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center")
+
+# load libraries
+library(tidyverse) # data cleaning, reading, visualizing
+library(scales) # data labels
+library(usmap) # map visualization
+library(janitor) # clean variable names
+library(sf) # read county shp files
+library(stargazer) # print regression tables
+
+# read data
+## data from the fcc
+df_fcc <- read_rds("../data/fcc/data_cleaned.rds")
+## data from microsoft, october 2020
+df_ms_20 <- read_csv("../data/ms/broadband_data_2020October.csv",
+                     na = "-", skip = 18)
+## 5-year acs data, 2015-2019
+df_acs <- read_rds("../data/acs/acs_5yr_ed.rds")
+## county-level shape files
+df_county <- st_read("../data/tl_2019_us_county/tl_2019_us_county.shp",
+                     quiet = TRUE)
+
+# munge data
+df_ms_mut <- clean_names(df_ms_20) %>%
+    mutate(delta = broadband_availability_per_fcc - broadband_usage,
+           fips = as.character(county_id) %>%
+               str_pad(5, side = "left", pad = "0"))
+
+df_ms_long <- df_ms_mut %>%
+  pivot_longer(
+    starts_with("broadband")
+  ) %>%
+  mutate(source = case_when(
+           str_detect(name, "fcc") ~ "fcc",
+           TRUE ~ "ms"
+         )) %>%
+    left_join(df_acs, by = "fips") %>%
+    left_join(
+        select(
+            st_drop_geometry(df_county), 
+            fips = GEOID, 
+            area = ALAND), 
+        by = "fips") %>%
+    mutate(pop_dense = tot_pop / (area / 2589988))
+
+# regression results
+long_lm <- list(
+  long_unadj = lm(
+    value ~ source,
+    data = df_ms_long
+  ),
+  long_adj1 = lm(
+    value ~ source + race_blacknh + race_asiannh + race_othernh + race_hispanic,
+    data = df_ms_long
+  ),
+  long_adj2 = lm(
+    value ~ source + race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low + log(pop_dense),
+    data = df_ms_long
+  )
+) 
+```
+
+
+
+## A note on speeds
+
+"High speed" or "broadband" internet access is defined as having speeds up to 25mbps for downloading data and up to 3mbps downloading data. As broadband access has been the focal point of the national conversation, all charts and analyses focus on internet available at that speed threshold. However, experts agree that broadband internet is not actually sufficient for working or learning remotely. Instead they recommend speeds of 50-100mbps. As people continue to fill their homes with smart TVs, laptops, smartphones, and other internet-connected devices, their internet needs increase. Only advocating for broadband speeds will put us behind the curve when we should be aiming ahead of it.
+
+
+# The State of Broadband Internet
+
+In June 2016, when the FCC first collected data from ISPs on internet access, the state of broadband internet wasn't as bad as you might expect. Almost all residents of the most populated areas of the country have access to at least one broadband internet provider. A year later, ISPs reported almost universal coverage, with 230 counties (out of over 3,000) had residents who would be unable to subscribe to broadband internet. By June 2020, only 23 counties had residents with no ISPs to choose from to receive broadband internet.
+
+```{r, fcc map june 2016}
+df_fcc %>%
+    filter(speed == 25, date == "jun16") %>%
+    {plot_usmap(data = ., values = "pct_1more", color = "transparent") +
+        scale_fill_gradient(label = percent, limits = c(0,1)) + 
+        labs(title = "Percent of Residents with Access to Broadband Internet",
+             subtitle = "June 2016, 25 mbps download",
+             fill = NULL,
+             caption = "Source: FCC Form 477 Aggregate Area Tables") + 
+        theme(legend.position = "right")}
+```
+
+```{r, fcc map june 2017}
+df_fcc %>%
+    filter(speed == 25, date == "jun17") %>%
+    {plot_usmap(data = ., values = "pct_1more", color = "transparent") +
+        scale_fill_gradient(label = percent, limits = c(0,1)) + 
+        labs(title = "Percent of Residents with Access to Broadband Internet",
+             subtitle = "June 2017, 25 mbps download",
+             fill = NULL,
+             caption = "Source: FCC Form 477 Aggregate Area Tables") + 
+        theme(legend.position = "right")}
+```
+
+Microsoft's data tells almost the opposite story--in October 2020, when the FCC is reporting that almost the entire United States had access to high speed internet, only 7 counties actually have 100% of their residents receiving high speed internet access in their homes. On average, only 36% of residents in a county have high speed internet. 
+
+```{r}
+plot_usmap(data = df_ms_mut, values = "broadband_usage", color = "transparent") +
+    scale_fill_gradient(label = scales::percent, limits = c(0,1)) + 
+    labs(title = "Percent of Residents Using Broadband Internet",
+         subtitle = "October 2020, 25 mbps download",
+         fill = NULL,
+         caption = "Source: Microsoft Broadband Data") +
+    theme(legend.position = "right")
+```
+
+## Why the Difference?
+
+There are four major reasons why Microsoft's accessibility data may vary from the FCC's availability data:
+
+1. Areas are not physically wired for internet access
+2. Users are not receiving the speeds promised by the ISP
+3. Price points are too high for residents to reasonably afford
+4. Residents are not interested in high-speed internet access
+
+Unfortunately, we do not have sufficient data to tease out which reason is the driving factor for observed differences. The FCC does not confirm the information provided by ISPs on their coverage areas. Internet plans in the U.S. are sold based on the "maximum" speed available at that price point--they do not report what speed users should expect in the course of average use. There is also little aggregated information on how plans are priced, though [Consumer Reports is currently collecting data](https://www.consumerreports.org/upload/broadband) to answer this question.
+
+## Regional Variations in Access
+
+For the most part, access to broadband is seen as a problem for rural America, where it is expensive to build out the infrastructure needed for high-speed wireless internet. Microsoft's data does suggest that more people are accessing broadband in high-density, coastal counties. But, I wondered if geographic region played a role in which counties had high levels of access reported by the ISPs but low levels of access estimated by Microsoft. The map below shows the percentage point difference between the FCC and Microsoft's data--and there is no visible geographic pattern. 
+
+```{r}
+plot_usmap(data = df_ms_mut, values = "delta", color = "transparent") +
+    scale_fill_gradient2(label = percent, limits = c(-1,1)) + 
+    labs(title = "Percentage Point Overestimation of Broadband Internet Access",
+         subtitle = "October 2020, 25 mbps download",
+         fill = NULL,
+         caption = "Source: Microsoft Broadband Data") + 
+    theme(legend.position = "right")
+```
+
+
+# Who Has Access
+
+This brought me to the central question of my analysis: are there demographic patterns that would explain why certain counties see higher levels of internet access? Initially, I was most interested in looking at race and ethnicity, imagining that even in high-density cities, counties with high proportions of Black and Hispanic residents would have less access to high-speed internet. Ultimately, my analysis included race/ethnicity, gender, age, and poverty estimates from the 2019 5-year American Community Survey population estimates and population density as calculated using the U.S. Census 2019 land areas joined with Microsoft's October 2020 dataset.
+
+<div align='center'>
+```{r, results = "asis"}
+stargazer(
+  long_lm,
+  type = "html",
+  covariate.labels = c("Source: Microsoft", "% Black Non-Hispanic", "% Asian Non-Hispanic", "% Other Non-Hispanic", "% Hispanic", "% Male", "% Age 18-64", "% Age 65+", "% Below Poverty Line", "Log Population Density<br>(persons per sq. mi.)"),
+  column.labels = c("Unadjusted", "Adjusted by Race", "Adjusted by Demos"), 
+  dep.var.labels = "% Residents in County with Broadband Access"
+)
+```
+</div><br>
+
+
+The first model is unadjusted--it only measures impact of the source of the data on high-speed internet access. It estimates that on average, counties have 45 percentage points less access to high speed internet access than reported to the FCC. That is to say, if the FCC reported that 100% of residents had access to broadband internet, Microsoft found that, on average, only 55% of residents were receiving those speeds. The two subsequent models do not change this estimate. 
+
+
+
+The second model adds controls for the racial and ethnic make-up of the counties. In particular it finds that counties with a higher percent of Black non-Hispanic or Native/mixed race/other non-Hispanic residents have significantly less access to broadband internet. Conversely, counties with large Asian non-Hispanic populations have significantly more access to broadband internet. While these findings are compelling, it is easy to see how they may be driven by other factors related to race. For example, these findings may be reflecting patterns that are actually related to class: counties with more Black residents have less broadband access not because their residents are Black, but because they are more likely to be poor. 
+
+
+Indeed, controlling for additional demographics like poverty status markedly decreases the estimated impact of Asian non-Hispanic and other non-Hispanic populations on broadband access (though it does increase the impact of Black non-Hispanic populations). Instead, the biggest factor is the percent of residents living below the poverty line, who likely are unable to afford broadband internet (if they can afford internet at all). The percent of elderly residents also has a large impact--possibly because people over the age of 65 are seen as not needing or wanting high-speed internet access. 
+
+# Conclusion
+
+Ultimately these results point to how crucial it is for us to collect better data on the availability of broadband internet, including pricing and level of interest. The FCC can and should be doing more to ensure that everyone who wants to access high speed internet--whether to learn something new, access their job, or build remote community--is able to. 
+
+But we don't have to rely on the slow-moving FCC! Consumer Reports is collecting data from internet subscribers in the United States, including their actual received internet speed, pricing, and other demographic information. Help us understand who has access so that we can effectively work towards a more wired America.
+

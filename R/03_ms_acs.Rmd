@@ -212,6 +212,35 @@ stargazer(
 ```
 
 
+```{r}
+df_ms_long_20 <- filter(df_ms_long, year == 2020)
+
+long_lm_20 <- list(
+  long_unadj = lm(
+    value ~ source,
+    data = df_ms_long_20
+  ),
+  long_adj1 = lm(
+    value ~ source + race_blacknh + race_asiannh + race_othernh + race_hispanic,
+    data = df_ms_long_20
+  ),
+  long_adj2 = lm(
+    value ~ source + race_blacknh + race_asiannh + race_othernh + race_hispanic + male + age_18to64 + age_65up + inc_low + log(pop_dense),
+    data = df_ms_long_20
+  )
+) 
+
+stargazer(
+  long_lm_20,
+  type = "html",
+  covariate.labels = c("Source: Microsoft", "% Black Non-Hispanic", "% Asian Non-Hispanic", "% Other Non-Hispanic", "% Hispanic", "% Male", "% Age 18-64", "% Age 65+", "% Below Poverty Line", "Log Population Density<br>(persons per sq. mi.)"),
+  column.labels = c("Unadjusted", "Adjusted by Race", "Adjusted by Demos"), 
+  dep.var.labels = "% Residents in County with Broadband Access",
+  out = "../output/long_lm_2020.htm"
+)
+```
+
+
 
 # Original Regressions (Unused)
 
@@ -272,3 +301,5 @@ stargazer(
   out = "../output/adjusted.htm"
 )
 ```
+
+
